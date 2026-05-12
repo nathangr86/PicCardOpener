@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCG Pack Creator</title>
+    <!-- JSZip Library for zipping files in the browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --card-width: 150px;
+            --card-height: 210px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .upload-section {
+            border: 2px dashed #444;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+            width: 80%;
+            max-width: 500px;
+        }
+
+        #pack-area {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        /* --- 3D Card Flip CSS --- */
+        .card {
+            width: var(--card-width);
+            height: var(--card-height);
+            perspective: 1000px;
+            cursor: pointer;
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #333;
+        }
+
+        .card-back {
+            background: linear-gradient(45deg, #1e3a8a, #3b82f6);
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            border: 4px solid #ffd700; /* Gold border like a rare pack */
+        }
+
+        .card-front {
+            transform: rotateY(180deg);
+        }
+
+        .card-front img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        button {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: transform 0.1s;
+        }
+
+        button:active { transform: scale(0.95); }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+
+        #download-btn { display: none; background-color: #10b981; }
+    </style>
+</head>
+<body>
+
+    <h1>TCG Pack Opener</h1>
+    
+    <div class="upload-section">
+        <p>Step 1: Upload your card pool (lots of images)</p>
+        <input type="file" id="file-input" multiple accept="image/*">
+        <br><br>
+        <button id="open-btn" disabled>Open 5-Card Pack</button>
+    </div>
+
+    <div id="pack-area"></div>
+
+    <button id="download-btn">Download Pack as ZIP</button>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const openBtn = document.getElementById('open-btn');
+        const packArea = document.getElementById('pack-area');
+        const downloadBtn = document.getElementById('download-btn');
+
+        let cardPool = [];
+        let currentPack = [];
+
+        // Load images into memory
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length < 5) {
+                alert("Please upload at least 5 images to fill a pack!");
+                return;
+            }
+
+            cardPool = [];
+            let loaded = 0;
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    cardPool.push({
+                        name: file.name,
+                        data: event.target.result // Base64 string
+                    });
+                    loaded++;
+                    if (loaded === files.length) openBtn.disabled = false;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        // The "Pack Opening" Logic
+        openBtn.addEventListener('click', () => {
+            packArea.innerHTML = '';
+            downloadBtn.style.display = 'none';
+            
+            // Fisher-Yates Shuffle
+            const shuffled = [...cardPool].sort(() => 0.5 - Math.random());
+            currentPack = shuffled.slice(0, 5);
+
+            currentPack.forEach(card => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card';
+                cardEl.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-back">?</div>
+                        <div class="card-front">
+                            <img src="${card.data}" alt="card">
+                        </div>
+                    </div>
+                `;
+                cardEl.onclick = () => {
+                    cardEl.classList.toggle('flipped');
+                    checkIfAllFlipped();
+                };
+                packArea.appendChild(cardEl);
+            });
+        });
+
+        function checkIfAllFlipped() {
+            const flippedCount = document.querySelectorAll('.card.flipped').length;
+            if (flippedCount === 5) {
+                downloadBtn.style.display = 'block';
+            }
+        }
+
+        // The Zipping Logic
+        downloadBtn.addEventListener('click', async () => {
+            const zip = new JSZip();
+            
+            currentPack.forEach((card, index) => {
+                // Remove base64 metadata header (e.g., "data:image/png;base64,")
+                const imgData = card.data.split(',')[1];
+                zip.file(`pack_card_${index + 1}.png`, imgData, {base64: true});
+            });
+
+            const content = await zip.generateAsync({type: "blob"});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = "TCG_Pack_Loot.zip";
+            link.click();
+        });
+    </script>
+</body>
+</html>
