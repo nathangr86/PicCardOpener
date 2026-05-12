@@ -122,8 +122,8 @@
         <p>Step 1: Upload your card pool (min. 5 images)</p>
         <input type="file" id="file-input" multiple accept="image/*">
         <div class="controls" style="margin-top: 20px;">
-            <button id="open-btn" disabled>Open 5-Card Pack</button>
-            <button id="reset-btn">Reset Everything</button>
+            <button id="open-btn" disabled>Open your very own Picture Card Pack</button>
+            <button id="reset-btn">Reset</button>
         </div>
     </div>
 
@@ -201,7 +201,6 @@
             link.click();
         });
 
-        // The missing Reset Logic
         resetBtn.addEventListener('click', () => {
             if (confirm("Reset the app and clear all images?")) {
                 cardPool = [];
